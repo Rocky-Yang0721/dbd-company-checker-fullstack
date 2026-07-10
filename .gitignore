@@ -1,14 +1,20 @@
+# Dependencies
 node_modules/
 client/node_modules/
 server/node_modules/
 
+# Environment
 .env
 client/.env
+client/.env.production
 server/.env
 
-dist/
+# Build
 client/dist/
 
+# Logs
 *.log
+
+# OS
 .DS_Store
 Thumbs.db
