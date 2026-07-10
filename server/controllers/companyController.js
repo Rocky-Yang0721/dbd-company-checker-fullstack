@@ -8,6 +8,21 @@ const ALLOWED_STATUSES = [
   "ไม่พบข้อมูล",
 ];
 
+const STATUS_MAP = {
+  // ภาษาอังกฤษ
+  active: "ยังดำเนินกิจการ",
+  pending: "รอตรวจสอบ",
+  closed: "เลิกกิจการ",
+  "not found": "ไม่พบข้อมูล",
+  notfound: "ไม่พบข้อมูล",
+
+  // ภาษาไทย
+  "ยังดำเนินกิจการ": "ยังดำเนินกิจการ",
+  "รอตรวจสอบ": "รอตรวจสอบ",
+  "เลิกกิจการ": "เลิกกิจการ",
+  "ไม่พบข้อมูล": "ไม่พบข้อมูล",
+};
+
 const normalizeCompanyItem = (item = {}, index = 0) => {
   const companyName = String(
     item.companyName ||
@@ -27,13 +42,19 @@ const normalizeCompanyItem = (item = {}, index = 0) => {
     .trim()
     .replace(/\D/g, "");
 
-  const rawStatus =
+  const rawStatus = String(
     item.status ||
-    item["สถานะ"] ||
-    "รอตรวจสอบ";
+      item["สถานะ"] ||
+      "รอตรวจสอบ"
+  )
+    .trim()
+    .toLowerCase();
 
-  const status = ALLOWED_STATUSES.includes(rawStatus)
-    ? rawStatus
+  const mappedStatus =
+    STATUS_MAP[rawStatus] || "รอตรวจสอบ";
+
+  const status = ALLOWED_STATUSES.includes(mappedStatus)
+    ? mappedStatus
     : "รอตรวจสอบ";
 
   const note = String(
@@ -135,7 +156,10 @@ const getCompanies = async (req, res) => {
 const getSearchHistory = async (req, res) => {
   try {
     const requestedLimit = Number(req.query.limit) || 10;
-    const limit = Math.min(Math.max(requestedLimit, 1), 50);
+    const limit = Math.min(
+      Math.max(requestedLimit, 1),
+      50
+    );
 
     const history = await SearchHistory.find({
       createdBy: req.user.id,
@@ -190,7 +214,8 @@ const getCompanyById = async (req, res) => {
 // POST /api/companies
 const createCompany = async (req, res) => {
   try {
-    const normalizedCompany = normalizeCompanyItem(req.body);
+    const normalizedCompany =
+      normalizeCompanyItem(req.body);
 
     if (!normalizedCompany.companyName) {
       return res.status(400).json({
@@ -199,7 +224,9 @@ const createCompany = async (req, res) => {
       });
     }
 
-    if (!/^\d{13}$/.test(normalizedCompany.juristicId)) {
+    if (
+      !/^\d{13}$/.test(normalizedCompany.juristicId)
+    ) {
       return res.status(400).json({
         success: false,
         message: "เลขนิติบุคคลต้องเป็นตัวเลข 13 หลัก",
@@ -248,7 +275,10 @@ const importCompanies = async (req, res) => {
     fileName = "",
   } = req.body;
 
-  if (!Array.isArray(companies) || companies.length === 0) {
+  if (
+    !Array.isArray(companies) ||
+    companies.length === 0
+  ) {
     return res.status(400).json({
       success: false,
       message: "ไม่พบข้อมูลบริษัทสำหรับนำเข้า",
@@ -264,7 +294,8 @@ const importCompanies = async (req, res) => {
 
   try {
     const normalizedCompanies = companies.map(
-      (item, index) => normalizeCompanyItem(item, index)
+      (item, index) =>
+        normalizeCompanyItem(item, index)
     );
 
     const validCompanies = [];
@@ -308,7 +339,10 @@ const importCompanies = async (req, res) => {
     const existingCompanyMap = new Map();
 
     existingCompanies.forEach((company) => {
-      existingCompanyMap.set(company.juristicId, company);
+      existingCompanyMap.set(
+        company.juristicId,
+        company
+      );
     });
 
     const bulkOperations = [];
@@ -407,7 +441,10 @@ const bulkSearchCompanies = async (req, res) => {
     searchType = "BULK_SEARCH",
   } = req.body;
 
-  if (!Array.isArray(companies) || companies.length === 0) {
+  if (
+    !Array.isArray(companies) ||
+    companies.length === 0
+  ) {
     return res.status(400).json({
       success: false,
       message: "ไม่พบข้อมูลบริษัทสำหรับตรวจสอบ",
@@ -423,7 +460,8 @@ const bulkSearchCompanies = async (req, res) => {
 
   try {
     const normalizedCompanies = companies.map(
-      (item, index) => normalizeCompanyItem(item, index)
+      (item, index) =>
+        normalizeCompanyItem(item, index)
     );
 
     const validJuristicIds = [
@@ -446,59 +484,72 @@ const bulkSearchCompanies = async (req, res) => {
     const companyMap = new Map();
 
     existingCompanies.forEach((company) => {
-      companyMap.set(company.juristicId, company);
+      companyMap.set(
+        company.juristicId,
+        company
+      );
     });
 
     let foundItems = 0;
     let notFoundItems = 0;
 
-    const results = normalizedCompanies.map((item) => {
-      if (!/^\d{13}$/.test(item.juristicId)) {
-        notFoundItems += 1;
+    const results = normalizedCompanies.map(
+      (item) => {
+        if (
+          !/^\d{13}$/.test(item.juristicId)
+        ) {
+          notFoundItems += 1;
+
+          return {
+            rowNumber: item.rowNumber,
+            companyName:
+              item.companyName || "-",
+            juristicId:
+              item.juristicId || "-",
+            status: "ไม่พบข้อมูล",
+            updateDate: null,
+            note: "เลขนิติบุคคลไม่ถูกต้อง",
+            source: "Validation",
+            found: false,
+          };
+        }
+
+        const matchedCompany =
+          companyMap.get(item.juristicId);
+
+        if (!matchedCompany) {
+          notFoundItems += 1;
+
+          return {
+            rowNumber: item.rowNumber,
+            companyName:
+              item.companyName || "-",
+            juristicId: item.juristicId,
+            status: "ไม่พบข้อมูล",
+            updateDate: null,
+            note: "ไม่พบข้อมูลในฐานข้อมูล Demo",
+            source: "Demo Database",
+            found: false,
+          };
+        }
+
+        foundItems += 1;
 
         return {
           rowNumber: item.rowNumber,
-          companyName: item.companyName || "-",
-          juristicId: item.juristicId || "-",
-          status: "ไม่พบข้อมูล",
-          updateDate: null,
-          note: "เลขนิติบุคคลไม่ถูกต้อง",
-          source: "Validation",
-          found: false,
-        };
-      }
-
-      const matchedCompany =
-        companyMap.get(item.juristicId);
-
-      if (!matchedCompany) {
-        notFoundItems += 1;
-
-        return {
-          rowNumber: item.rowNumber,
-          companyName: item.companyName || "-",
-          juristicId: item.juristicId,
-          status: "ไม่พบข้อมูล",
-          updateDate: null,
-          note: "ไม่พบข้อมูลในฐานข้อมูล Demo",
+          companyName:
+            matchedCompany.companyName,
+          juristicId:
+            matchedCompany.juristicId,
+          status: matchedCompany.status,
+          updateDate:
+            matchedCompany.updateDate,
+          note: matchedCompany.note || "",
           source: "Demo Database",
-          found: false,
+          found: true,
         };
       }
-
-      foundItems += 1;
-
-      return {
-        rowNumber: item.rowNumber,
-        companyName: matchedCompany.companyName,
-        juristicId: matchedCompany.juristicId,
-        status: matchedCompany.status,
-        updateDate: matchedCompany.updateDate,
-        note: matchedCompany.note || "",
-        source: "Demo Database",
-        found: true,
-      };
-    });
+    );
 
     const historyActionType =
       searchType === "PASTE_SEARCH"
@@ -538,7 +589,8 @@ const bulkSearchCompanies = async (req, res) => {
 
     return res.status(500).json({
       success: false,
-      message: "ไม่สามารถตรวจสอบข้อมูลแบบหลายบริษัทได้",
+      message:
+        "ไม่สามารถตรวจสอบข้อมูลแบบหลายบริษัทได้",
       error: error.message,
     });
   }
@@ -558,34 +610,43 @@ const updateCompany = async (req, res) => {
         .trim()
         .replace(/\D/g, "");
 
-      if (!/^\d{13}$/.test(updateData.juristicId)) {
+      if (
+        !/^\d{13}$/.test(updateData.juristicId)
+      ) {
         return res.status(400).json({
           success: false,
-          message: "เลขนิติบุคคลต้องเป็นตัวเลข 13 หลัก",
+          message:
+            "เลขนิติบุคคลต้องเป็นตัวเลข 13 หลัก",
         });
       }
     }
 
-    if (
-      updateData.status &&
-      !ALLOWED_STATUSES.includes(updateData.status)
-    ) {
-      updateData.status = "รอตรวจสอบ";
+    if (updateData.status) {
+      const rawStatus = String(
+        updateData.status
+      )
+        .trim()
+        .toLowerCase();
+
+      updateData.status =
+        STATUS_MAP[rawStatus] ||
+        "รอตรวจสอบ";
     }
 
     updateData.updateDate = new Date();
 
-    const company = await Company.findOneAndUpdate(
-      {
-        _id: req.params.id,
-        createdBy: req.user.id,
-      },
-      updateData,
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
+    const company =
+      await Company.findOneAndUpdate(
+        {
+          _id: req.params.id,
+          createdBy: req.user.id,
+        },
+        updateData,
+        {
+          new: true,
+          runValidators: true,
+        }
+      );
 
     if (!company) {
       return res.status(404).json({
@@ -618,10 +679,11 @@ const updateCompany = async (req, res) => {
 // DELETE /api/companies/:id
 const deleteCompany = async (req, res) => {
   try {
-    const company = await Company.findOneAndDelete({
-      _id: req.params.id,
-      createdBy: req.user.id,
-    });
+    const company =
+      await Company.findOneAndDelete({
+        _id: req.params.id,
+        createdBy: req.user.id,
+      });
 
     if (!company) {
       return res.status(404).json({
